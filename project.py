@@ -112,73 +112,71 @@ def validate_file(path: str) -> Path:
 
 def apply_watermark(image: Image.Image, text: str) -> Image.Image:
     """
-    Apply a semi-transparent watermark text to the bottom-right corner of an image.
-
-    The font size is calculated relative to the image width (approximately 3%).
-    The watermark uses 50% transparency (alpha=128).
-
-    Args:
-        image: The source PIL Image object (must be in RGBA mode).
-        text: The watermark text to apply.
-
-    Returns:
-        A new PIL Image object with the watermark applied.
+    Mejora: Usa fuentes de sistema en Linux y dibuja un borde para que se vea
+    en fondos claros y oscuros.
     """
     overlay = Image.new("RGBA", image.size, (255, 255, 255, 0))
     draw = ImageDraw.Draw(overlay)
 
-    font_size = max(16, image.width // 30)
-    try:
-        font = ImageFont.truetype("arial.ttf", font_size)
-    except OSError:
+    # Proporción del 5% del ancho de la imagen
+    font_size = max(24, image.width // 20)
+    
+    # Intentar cargar una fuente común en Arch Linux (DejaVu o Liberation)
+    font = None
+    fonts_to_try = [
+        "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/liberation/LiberationSans-Bold.ttf",
+        "arial.ttf"
+    ]
+    
+    for f in fonts_to_try:
+        try:
+            font = ImageFont.truetype(f, font_size)
+            break
+        except OSError:
+            continue
+            
+    if not font:
         font = ImageFont.load_default()
 
+    # Calcular posición con padding relativo
+    padding = image.width // 50
     bbox = draw.textbbox((0, 0), text, font=font)
     text_width = bbox[2] - bbox[0]
     text_height = bbox[3] - bbox[1]
+    
+    x = image.width - text_width - padding
+    y = image.height - text_height - padding
 
-    padding = 20
-    x_position = image.width - text_width - padding
-    y_position = image.height - text_height - padding
-
-    draw.text(
-        (x_position, y_position),
-        text,
-        font=font,
-        fill=(255, 255, 255, 128),
-    )
+    # Dibujar un pequeño borde negro para que resalte
+    draw.text((x+2, y+2), text, font=font, fill=(0, 0, 0, 150))
+    # Dibujar el texto blanco principal
+    draw.text((x, y), text, font=font, fill=(255, 255, 255, 200))
 
     return Image.alpha_composite(image, overlay)
 
-
 def resize_for_platform(image: Image.Image, platform: PlatformType) -> Image.Image:
     """
-    Resize an image for a specific social media platform while maintaining aspect ratio.
-
-    The image is scaled to fit within the target dimensions without cropping,
-    preserving the original aspect ratio.
-
-    Args:
-        image: The source PIL Image object.
-        platform: The target platform ('youtube' or 'instagram').
-
-    Returns:
-        A new PIL Image object resized for the specified platform.
+    Mejora: Ajusta la imagen al tamaño exacto de la plataforma.
+    Si la relación de aspecto no coincide, añade un fondo negro (letterboxing).
     """
     target_width, target_height = PLATFORM_SIZES[platform]
-
-    image_ratio = image.width / image.height
-    target_ratio = target_width / target_height
-
-    if image_ratio > target_ratio:
-        new_width = target_width
-        new_height = int(target_width / image_ratio)
-    else:
-        new_height = target_height
-        new_width = int(target_height * image_ratio)
-
-    return image.resize((new_width, new_height), Image.Resampling.LANCZOS)
-
+    
+    # Crear un lienzo negro del tamaño exacto de la plataforma
+    canvas = Image.new("RGBA", (target_width, target_height), (0, 0, 0, 255))
+    
+    # Redimensionar manteniendo aspecto (Thumbnailing)
+    img_copy = image.copy()
+    img_copy.thumbnail((target_width, target_height), Image.Resampling.LANCZOS)
+    
+    # Centrar la imagen en el lienzo
+    offset = (
+        (target_width - img_copy.width) // 2,
+        (target_height - img_copy.height) // 2
+    )
+    
+    canvas.paste(img_copy, offset, img_copy if img_copy.mode == 'RGBA' else None)
+    return canvas
 
 if __name__ == "__main__":
     main()
