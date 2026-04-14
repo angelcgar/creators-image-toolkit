@@ -1,59 +1,135 @@
-from PIL import Image, ImageDraw, ImageFont
+"""
+Creators Image Toolkit - A CLI utility for digital creators to process images.
+
+This module provides functionality to add watermarks and resize images
+for different social media platforms (YouTube, Instagram).
+"""
+
+from __future__ import annotations
+
+import argparse
 import sys
-import os
+from pathlib import Path
+from typing import Literal
+
+from PIL import Image, ImageDraw, ImageFont
+#from PIL.UnidentifiedImageError import UnidentifiedImageError
+from PIL import Image, UnidentifiedImageError
 
 
-VALID_EXTENSIONS = (".png", ".jpg", ".jpeg")
-PLATFORM_SIZES = {
+VALID_EXTENSIONS: tuple[str, ...] = (".png", ".jpg", ".jpeg")
+PLATFORM_SIZES: dict[str, tuple[int, int]] = {
     "youtube": (1280, 720),
     "instagram": (1080, 1350),
 }
+PlatformType = Literal["youtube", "instagram"]
 
 
-def main():
-    if len(sys.argv) < 3:
-        sys.exit("Usage: python project.py <image_path> <platform>")
+def main() -> None:
+    """
+    Main entry point for the CLI application.
 
-    image_path = sys.argv[1]
-    platform = sys.argv[2].lower()
+    Parses command-line arguments, validates the input file,
+    applies watermark, resizes for the target platform, and saves the output.
+    """
+    parser = argparse.ArgumentParser(
+        description="Process images for social media platforms with watermarks.",
+        prog="project",
+    )
+    parser.add_argument(
+        "input",
+        type=str,
+        help="Path to the source image file.",
+    )
+    parser.add_argument(
+        "--platform",
+        type=str,
+        choices=["youtube", "instagram"],
+        default="youtube",
+        help="Target platform for resizing (default: youtube).",
+    )
+    parser.add_argument(
+        "--text",
+        type=str,
+        default="ArtPro",
+        help="Watermark text to apply (default: ArtPro).",
+    )
 
-    if platform not in PLATFORM_SIZES:
-        sys.exit(f"Invalid platform. Choose from: {', '.join(PLATFORM_SIZES.keys())}")
-
-    validated_path = validate_file(image_path)
-
-    watermark_text = input("Enter watermark text (default: ArtPro): ").strip()
-    if not watermark_text:
-        watermark_text = "ArtPro"
-
-    watermarked_img = apply_watermark(validated_path, watermark_text)
-    resized_img = resize_for_platform(watermarked_img, platform)
-
-    base_name = os.path.splitext(os.path.basename(validated_path))[0]
-    output_filename = f"{base_name}_{platform}_final.png"
-    resized_img.save(output_filename)
-    print(f"Image saved as: {output_filename}")
-
-
-def validate_file(path):
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"File not found: {path}")
-
-    _, ext = os.path.splitext(path)
-    if ext.lower() not in VALID_EXTENSIONS:
-        raise ValueError(f"Invalid file extension. Allowed: {', '.join(VALID_EXTENSIONS)}")
-
-    return path
-
-
-def apply_watermark(img_path, text):
-    img = Image.open(img_path).convert("RGBA")
-
-    overlay = Image.new("RGBA", img.size, (255, 255, 255, 0))
-    draw = ImageDraw.Draw(overlay)
+    args = parser.parse_args()
 
     try:
-        font = ImageFont.truetype("arial.ttf", 36)
+        validated_path = validate_file(args.input)
+        image = Image.open(validated_path).convert("RGBA")
+
+        watermarked_image = apply_watermark(image, args.text)
+        resized_image = resize_for_platform(watermarked_image, args.platform)
+
+        output_filename = f"{validated_path.stem}_{args.platform}_final.png"
+        resized_image.save(output_filename)
+        print(f"Image saved as: {output_filename}")
+
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except UnidentifiedImageError:
+        print(f"Error: Cannot identify image file '{args.input}'.", file=sys.stderr)
+        sys.exit(1)
+    except OSError as e:
+        print(f"Error: Failed to process image - {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def validate_file(path: str) -> Path:
+    """
+    Validate that the file exists and has a supported image extension.
+
+    Args:
+        path: The file path to validate.
+
+    Returns:
+        A Path object representing the validated file path.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        ValueError: If the file extension is not supported.
+    """
+    file_path = Path(path)
+
+    if not file_path.exists():
+        raise FileNotFoundError(f"File not found: {path}")
+
+    if file_path.suffix.lower() not in VALID_EXTENSIONS:
+        raise ValueError(
+            f"Invalid file extension '{file_path.suffix}'. "
+            f"Allowed: {', '.join(VALID_EXTENSIONS)}"
+        )
+
+    return file_path
+
+
+def apply_watermark(image: Image.Image, text: str) -> Image.Image:
+    """
+    Apply a semi-transparent watermark text to the bottom-right corner of an image.
+
+    The font size is calculated relative to the image width (approximately 3%).
+    The watermark uses 50% transparency (alpha=128).
+
+    Args:
+        image: The source PIL Image object (must be in RGBA mode).
+        text: The watermark text to apply.
+
+    Returns:
+        A new PIL Image object with the watermark applied.
+    """
+    overlay = Image.new("RGBA", image.size, (255, 255, 255, 0))
+    draw = ImageDraw.Draw(overlay)
+
+    font_size = max(16, image.width // 30)
+    try:
+        font = ImageFont.truetype("arial.ttf", font_size)
     except OSError:
         font = ImageFont.load_default()
 
@@ -62,33 +138,46 @@ def apply_watermark(img_path, text):
     text_height = bbox[3] - bbox[1]
 
     padding = 20
-    x = img.width - text_width - padding
-    y = img.height - text_height - padding
+    x_position = image.width - text_width - padding
+    y_position = image.height - text_height - padding
 
-    draw.text((x, y), text, font=font, fill=(255, 255, 255, 128))
+    draw.text(
+        (x_position, y_position),
+        text,
+        font=font,
+        fill=(255, 255, 255, 128),
+    )
 
-    watermarked = Image.alpha_composite(img, overlay)
-    return watermarked
+    return Image.alpha_composite(image, overlay)
 
 
-def resize_for_platform(img, platform="youtube"):
-    if isinstance(img, str):
-        img = Image.open(img).convert("RGBA")
+def resize_for_platform(image: Image.Image, platform: PlatformType) -> Image.Image:
+    """
+    Resize an image for a specific social media platform while maintaining aspect ratio.
 
+    The image is scaled to fit within the target dimensions without cropping,
+    preserving the original aspect ratio.
+
+    Args:
+        image: The source PIL Image object.
+        platform: The target platform ('youtube' or 'instagram').
+
+    Returns:
+        A new PIL Image object resized for the specified platform.
+    """
     target_width, target_height = PLATFORM_SIZES[platform]
 
-    img_ratio = img.width / img.height
+    image_ratio = image.width / image.height
     target_ratio = target_width / target_height
 
-    if img_ratio > target_ratio:
+    if image_ratio > target_ratio:
         new_width = target_width
-        new_height = int(target_width / img_ratio)
+        new_height = int(target_width / image_ratio)
     else:
         new_height = target_height
-        new_width = int(target_height * img_ratio)
+        new_width = int(target_height * image_ratio)
 
-    resized = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-    return resized
+    return image.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
 
 if __name__ == "__main__":
