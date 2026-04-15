@@ -1,12 +1,14 @@
 # Creators Image Toolkit
 
-#### Video Demo:
+#### Video Demo: [Link](https://youtu.be/9AuRckmKNiM)
 
-#### Description: 
+#### Description
 
 The Creators Image Toolkit is a specialized Command Line Interface (CLI) tool designed for digital artists and content creators who need to streamline their post-production workflow. As a digital illustrator myself, I often found the process of manually watermarking and resizing artworks for different social media platforms to be tedious and prone to human error. This project solves that problem by providing a robust, automated solution written in Python.
 
 The core purpose of this software is to take a high-resolution source image (such as an export from Ibis Paint X or Procreate) and automatically generate multiple versions optimized for platforms like Instagram, YouTube, TikTok, and Square formats. Beyond simple resizing, the toolkit ensures that every exported image maintains its professional branding through a dynamically scaled watermark.
+
+Github [Url](https://github.com/angelcgar/creators-image-toolkit)
 
 ### Features and Functionality
 
@@ -34,10 +36,11 @@ During development, I made several critical design decisions:
 
 - **The Watermark Logic**: I initially considered a fixed font size, but realized it would be invisible on 4K renders and massive on small thumbnails. Implementing a percentage-based scaling (5% of the shorter side) ensured consistency across all resolutions.
 
-- **Linux Compatibility**: Since I develop on **Arch Linux**, I implemented a font-searching logic that looks for common system fonts like *DejaVu Sans* or *Liberation Sans*, falling back to the default PIL font only if necessary. This makes the tool "plug-and-play" for Linux users.
+- **Linux Compatibility**: Since I develop on **Arch Linux**, I implemented a font-searching logic that looks for common system fonts like _DejaVu Sans_ or _Liberation Sans_, falling back to the default PIL font only if necessary. This makes the tool "plug-and-play" for Linux users.
 
 - **RGBA vs RGB**: I decided to convert all images to RGBA during processing. This allows for semi-transparent watermarks and ensures that transparency in the original artwork is preserved throughout the resizing process.
 
 ### Conclusion
 
 This project represents a bridge between my two passions: digital art and software development. It is not just an academic exercise but a tool I intend to use for my own creative portfolio. By automating these repetitive tasks, the **Creators Image Toolkit** allows artists to spend less time on technical exports and more time on the creative process.
+
